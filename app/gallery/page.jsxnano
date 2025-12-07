@@ -1,0 +1,73 @@
+import { supabase } from '../../lib/supabase';
+
+export default async function Page() {
+  const { data: gallery, error } = await supabase
+    .from('art_gallery')
+    .select('id, image_url, category, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  return (
+    <main style={{ padding: '2rem', background: '#0f0f0f', color: '#eee', minHeight: '100vh' }}>
+      <h1 style={{ fontSize: '1.8rem', marginBottom: '1rem' }}>🎨 Art Gallery</h1>
+      {error && <p style={{ color: 'tomato' }}>Error: {error.message}</p>}
+
+      {!gallery || gallery.length === 0 ? (
+        <p>No art found yet.</p>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gap: '1rem',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          }}
+        >
+          {gallery.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                background: '#1a1a1a',
+                border: '1px solid #222',
+                borderRadius: '0.5rem',
+                overflow: 'hidden',
+              }}
+            >
+              {item.image_url ? (
+                <img
+                    src={item.image_url}
+                    alt={item.category || 'Artwork'}
+                    style={{ width: '100%', height: '180px', objectFit: 'cover' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: '180px',
+                    background: '#333',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#888',
+                  }}
+                >
+                  no image_url
+                </div>
+              )}
+
+              <div style={{ padding: '0.75rem 1rem 1rem' }}>
+                <h2 style={{ fontSize: '1rem' }}>
+                  {item.category || 'Untitled'}
+                </h2>
+                {item.created_at && (
+                  <p style={{ fontSize: '0.7rem', color: '#666', marginTop: '0.4rem' }}>
+                    {new Date(item.created_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}
+
