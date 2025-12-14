@@ -1,4 +1,4 @@
-kimport { useState } from "react";
+import { useState } from "react";
 import SettingsPage from "./pages/SettingsPage";
 
 type Tab = "home" | "upload" | "gallery" | "profile" | "settings" | "about";
