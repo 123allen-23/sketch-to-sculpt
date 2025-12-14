@@ -1,261 +1,107 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { supabase } from "../lib/supabaseClient";
+import { useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabaseClient'
+
+// If you already have a ProfileSection component, we’ll use it when logged in:
+import ProfileSection from '../../src/components/ProfileSection'
 
 export default function ProfilePage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [session, setSession] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [avatarFile, setAvatarFile] = useState(null);
-
-  const [message, setMessage] = useState("");
-  const [notLoggedIn, setNotLoggedIn] = useState(false);
+  // login form state
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    let mounted = true
 
-  async function loadProfile() {
-    setLoading(true);
-    setMessage("");
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return
+      setSession(data.session ?? null)
+      setLoading(false)
+    })
 
-    // 1. Get current session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s ?? null)
+    })
 
-    if (sessionError) {
-      console.error("Session error:", sessionError);
-      setMessage("Error getting session.");
-      setLoading(false);
-      return;
+    return () => {
+      mounted = false
+      sub?.subscription?.unsubscribe()
     }
+  }, [])
 
-    const user = session?.user;
-    if (!user) {
-      setNotLoggedIn(true);
-      setLoading(false);
-      return;
-    }
-
-    // 2. Load profile row
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Load profile error:", error);
-      setMessage("Error loading profile.");
-      setLoading(false);
-      return;
-    }
-
-    setDisplayName(
-      data?.full_name || data?.display_name || data?.name || ""
-    );
-
-    setBio(
-      data?.bio ||
-        data?.about ||
-        "I turn pencil sketches into gallery-ready pieces."
-    );
-
-    setAvatarUrl(data?.avatar_url || data?.avatar || "");
-
-    setLoading(false);
+  async function onLogin(e) {
+    e.preventDefault()
+    setMsg('')
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setMsg(error.message)
   }
 
-  async function uploadAvatar(file, userId) {
-    if (!file) return null;
-
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${userId}-${Date.now()}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
-
-    // Upload to the **avatars** bucket (lowercase)
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, file, {
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("Avatar upload error:", uploadError);
-      setMessage("Error uploading avatar.");
-      return null;
-    }
-
-    const { data: publicData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(filePath);
-
-    return publicData?.publicUrl || null;
+  async function onSignup() {
+    setMsg('')
+    const { error } = await supabase.auth.signUp({ email, password })
+    if (error) setMsg(error.message)
+    else setMsg('Signup OK. Check email if confirmations are on.')
   }
 
-  async function handleSave(e) {
-    e.preventDefault();
-    setSaving(true);
-    setMessage("");
-
-    // Grab user again (simple + safe)
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError || !session?.user) {
-      setMessage("You must be logged in to save your profile.");
-      setSaving(false);
-      return;
-    }
-
-    const user = session.user;
-    let newAvatarUrl = avatarUrl;
-
-    // If a new file is picked, upload it
-    if (avatarFile) {
-      const uploadedUrl = await uploadAvatar(avatarFile, user.id);
-      if (uploadedUrl) {
-        newAvatarUrl = uploadedUrl;
-        setAvatarUrl(uploadedUrl);
-      }
-    }
-
-    // Upsert into profiles table
-    const { error } = await supabase.from("profiles").upsert(
-      {
-        id: user.id,
-        full_name: displayName,
-        bio: bio,
-        avatar_url: newAvatarUrl,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      console.error("Save profile error:", error);
-      setMessage("Error saving profile.");
-      setSaving(false);
-      return;
-    }
-
-    setMessage("Profile saved.");
-    setSaving(false);
+  async function onLogout() {
+    await supabase.auth.signOut()
   }
 
-  function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAvatarFile(file);
-  }
+  if (loading) return <div style={{ padding: 16 }}>Loading…</div>
 
-  // ───────────────── UI ─────────────────
-
-  if (loading) {
+  // NOT LOGGED IN: show login + signup right on profile page
+  if (!session) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100">
-        <p>Loading profile…</p>
-      </main>
-    );
-  }
+      <div style={{ maxWidth: 520, margin: '40px auto', padding: 16 }}>
+        <h1 style={{ fontSize: 26, marginBottom: 6 }}>Profile</h1>
+        <p style={{ marginBottom: 18 }}>Log in to create your avatar and manage your profile.</p>
 
-  if (notLoggedIn) {
-    return (
-      <main className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 px-4">
-        <h1 className="text-3xl font-bold mb-4">Profile</h1>
-        <p className="mb-6 text-slate-300">
-          You&apos;re not logged in. Log in and reload this page.
-        </p>
-      </main>
-    );
-  }
+        <form onSubmit={onLogin} style={{ display: 'grid', gap: 12 }}>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="email"
+            required
+            style={{ padding: 10 }}
+          />
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            type="password"
+            autoComplete="current-password"
+            required
+            style={{ padding: 10 }}
+          />
 
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex justify-center px-4 py-10">
-      <div className="w-full max-w-xl bg-slate-900/70 border border-slate-700/70 rounded-2xl p-6 shadow-xl">
-        <h1 className="text-3xl font-bold mb-6 text-center">Profile</h1>
+          <button style={{ padding: 10 }}>Login</button>
 
-        {/* Avatar */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="relative h-28 w-28 rounded-full overflow-hidden border border-slate-600 bg-slate-800 flex items-center justify-center">
-{avatarUrl ? (
-  <Image
-    src={avatarUrl}
-    alt="Avatar"
-    width={112}   // 28 * 4
-    height={112}
-    className="rounded-full object-cover"
-  />
-) : (
-  <span className="text-slate-400 text-sm text-center px-2">
-    No avatar yet
-  </span>
-)}          </div>
-          <label className="mt-4 inline-flex items-center px-3 py-2 rounded-full border border-slate-600 text-sm cursor-pointer hover:bg-slate-800">
-            Choose avatar
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </label>
-        </div>
-
-        <form onSubmit={handleSave} className="space-y-4">
-          {/* Display name */}
-          <div>
-            <label className="block text-sm mb-1">Display name</label>
-            <input
-              type="text"
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-sky-500"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Capn, SketchSmith, etc."
-            />
-          </div>
-
-          {/* “What I create” / bio */}
-          <div>
-            <label className="block text-sm mb-1">
-              What I create (bio)
-            </label>
-            <textarea
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-sky-500 min-h-[90px]"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="I turn pencil sketches into sculptures, prints, and gallery-ready art."
-            />
-          </div>
-
-          {/* Status message */}
-          {message && message !== "Profile saved." && (
-            <p className="text-xs text-red-400 mt-1">{message}</p>
-          )}
-          {message === "Profile saved." && (
-            <p className="text-xs text-emerald-400 mt-1">
-              Profile saved successfully.
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="mt-4 w-full rounded-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-medium py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {saving ? "Saving…" : "Save profile"}
+          <button type="button" onClick={onSignup} style={{ padding: 10 }}>
+            Create account
           </button>
+
+          {msg ? <div style={{ color: msg.includes('OK') ? 'green' : 'crimson' }}>{msg}</div> : null}
         </form>
       </div>
-    </main>
-  );
+    )
+  }
+
+  // LOGGED IN: show avatar/profile tools
+  return (
+    <div style={{ maxWidth: 900, margin: '40px auto', padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 26 }}>Profile</h1>
+        <button onClick={onLogout} style={{ padding: 10 }}>Logout</button>
+      </div>
+
+      {/* This is your avatar creation / profile section */}
+      <ProfileSection />
+    </div>
+  )
 }
