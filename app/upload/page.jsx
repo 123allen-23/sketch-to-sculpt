@@ -1,134 +1,96 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import { useRouter } from "next/navigation";
-
-export default function Upload() {
-  const router = useRouter();
-
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Original");
-  const [story, setStory] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+import { useState } from 'react';
+import { supabase } from '../../lib/supabaseClient'
+export default function UploadPage() {
+  const [title, setTitle] = useState('');
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
 
   async function handleUpload(e) {
     e.preventDefault();
+    setMsg('');
+    if (!file) return setMsg('Pick a file first.');
 
-    if (!imageFile) {
-      setError("Please choose an image.");
-      return;
-    }
-
+    setBusy(true);
     try {
-      setLoading(true);
-      setError("");
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) throw new Error('Not logged in.');
 
-      // 1. Upload image to Supabase Storage
-      const fileName = `drawing_${Date.now()}.jpg`;
-
-      const { data: storageData, error: storageError } = await supabase.storage
-        .from("art-images") // make sure your bucket is named this
-        .upload(fileName, imageFile);
-
-      if (storageError) throw storageError;
-
-      const imageUrl =
-        supabase.storage.from("art-images").getPublicUrl(fileName).data.publicUrl;
-
-      // 2. Insert DB record
-      const { data, error: dbError } = await supabase
-        .from("art_gallery")
-        .insert([
-          {
-            title,
-            category,
-            story,
-            image_url: imageUrl,
-          },
-        ])
-        .select()
+      // 1) Create gallery row
+      const { data: gallery, error: gErr } = await supabase
+        .from('art_gallery')
+        .insert({
+          artist_id: user.id,
+          title: title?.trim() || 'Untitled',
+        })
+        .select('*')
         .single();
 
-      if (dbError) throw dbError;
+      if (gErr) throw new Error(gErr.message);
 
-      // 3. Redirect to drawing page
-      router.push(`/drawing?id=${data.id}`);
+      // 2) Upload file to originals bucket
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const filePath = `${user.id}/${gallery.id}/${Date.now()}_original.${ext}`;
 
+      const { error: upErr } = await supabase.storage
+        .from('originals')
+        .upload(filePath, file, { upsert: true });
+
+      if (upErr) throw new Error(upErr.message);
+
+      // 3) Get public url
+      const { data: pub } = supabase.storage.from('originals').getPublicUrl(filePath);
+      const url = pub?.publicUrl;
+      if (!url) throw new Error('Could not get public URL.');
+
+      // 4) Insert asset row
+      const { error: aErr } = await supabase.from('art_gallery_assets').insert({
+        gallery_id: gallery.id,
+        artist_id: user.id,
+        kind: 'original',
+        url,
+        status: 'ready',
+      });
+
+      if (aErr) throw new Error(aErr.message);
+
+      setMsg(`Uploaded ✅ Gallery ID: ${gallery.id}`);
+      setTitle('');
+      setFile(null);
     } catch (err) {
-      console.error(err);
-      setError("Upload failed. " + err.message);
+      setMsg(`❌ ${err.message || String(err)}`);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 p-6">
-      <div className="max-w-xl mx-auto space-y-4">
-        <h1 className="text-2xl font-bold">Upload Drawing</h1>
+    <div style={{ maxWidth: 720, margin: '40px auto', padding: 16 }}>
+      <h1 style={{ fontSize: 32, marginBottom: 8 }}>Upload a New Original</h1>
 
-        <form onSubmit={handleUpload} className="space-y-4">
+      <form onSubmit={handleUpload} style={{ display: 'grid', gap: 12 }}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title (optional)"
+          style={{ padding: 10, borderRadius: 10 }}
+        />
 
-          <div>
-            <label className="text-sm">Title</label>
-            <input
-              type="text"
-              className="w-full mt-1 rounded bg-slate-900 border border-slate-700 px-3 py-2"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-          </div>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
 
-          <div>
-            <label className="text-sm">Category</label>
-            <select
-              className="w-full mt-1 rounded bg-slate-900 border border-slate-700 px-3 py-2"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option>Original</option>
-              <option>Refined</option>
-              <option>Concept</option>
-              <option>3D Sculpt</option>
-            </select>
-          </div>
+        <button disabled={busy} style={{ padding: 12, borderRadius: 12 }}>
+          {busy ? 'Uploading…' : 'Upload Original'}
+        </button>
 
-          <div>
-            <label className="text-sm">Story (optional)</label>
-            <textarea
-              rows={3}
-              className="w-full mt-1 rounded bg-slate-900 border border-slate-700 px-3 py-2"
-              value={story}
-              onChange={(e) => setStory(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="text-sm">Image File</label>
-            <input
-              type="file"
-              accept="image/*"
-              className="w-full mt-1 text-slate-300"
-              onChange={(e) => setImageFile(e.target.files[0])}
-              required
-            />
-          </div>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2 text-sm font-semibold disabled:opacity-50"
-          >
-            {loading ? "Uploading..." : "Upload Drawing"}
-          </button>
-        </form>
-      </div>
-    </main>
+        {msg && <div style={{ opacity: 0.9 }}>{msg}</div>}
+      </form>
+    </div>
   );
 }

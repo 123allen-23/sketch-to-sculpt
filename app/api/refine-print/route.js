@@ -1,70 +1,90 @@
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+function jsonError(message, status = 400, extra = {}) {
+  return NextResponse.json({ ok: false, error: message, ...extra }, { status });
+}
 
-export async function POST(request) {
+function extFromContentType(ct = '') {
+  if (ct.includes('png')) return 'png';
+  if (ct.includes('webp')) return 'webp';
+  return 'jpg';
+}
+
+export async function POST(req) {
   try {
-    const { artworkId } = await request.json();
+    const { galleryId } = await req.json();
+    if (!galleryId) return jsonError('Missing galleryId');
 
-    if (!artworkId) {
-      return NextResponse.json(
-        { error: 'Missing artworkId' },
-        { status: 400 }
-      );
-    }
+    const supabase = supabaseAdmin();
 
-    // 1) Get the original artwork
-    const { data: original, error } = await supabaseAdmin
+    // 1) Load gallery row (to get artist_id)
+    const { data: gallery, error: gErr } = await supabase
       .from('art_gallery')
-      .select('*')
-      .eq('id', artworkId)
+      .select('id, artist_id, title')
+      .eq('id', galleryId)
       .single();
 
-    if (error || !original) {
-      console.error('Fetch error:', error);
-      return NextResponse.json(
-        { error: 'Artwork not found' },
-        { status: 404 }
-      );
+    if (gErr || !gallery) return jsonError('Gallery not found', 404, { details: gErr?.message });
+
+    // 2) Find original asset for this gallery row
+    const { data: original, error: oErr } = await supabase
+      .from('art_gallery_assets')
+      .select('id, url')
+      .eq('gallery_id', galleryId)
+      .eq('kind', 'original')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (oErr || !original?.url) {
+      return jsonError('Original asset not found for this galleryId', 404, { details: oErr?.message });
     }
 
-    // Take all fields except id / created_at
-    const { id, created_at, ...rest } = original;
+    // 3) Download original image
+    const imgRes = await fetch(original.url);
+    if (!imgRes.ok) return jsonError('Failed to fetch original image URL', 400, { url: original.url });
 
-    // 2) Insert a new row as the "Refined Print"
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from('art_gallery')
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const bytes = Buffer.from(await imgRes.arrayBuffer());
+    const ext = extFromContentType(contentType);
+
+    // 4) PIPELINE PROOF MODE:
+    //    For now, we simply copy the original bytes into the refined bucket.
+    //    (Once this works end-to-end, we swap this block to real OpenAI refine.)
+    const filePath = `${gallery.artist_id}/${galleryId}/${Date.now()}_refined.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('refined')
+      .upload(filePath, bytes, { contentType, upsert: true });
+
+    if (upErr) return jsonError('Upload to refined bucket failed', 500, { details: upErr.message });
+
+    const { data: pub } = supabase.storage.from('refined').getPublicUrl(filePath);
+    const refinedUrl = pub?.publicUrl;
+
+    if (!refinedUrl) return jsonError('Could not create public URL for refined upload', 500);
+
+    // 5) Insert refined asset row
+    const { data: inserted, error: insErr } = await supabase
+      .from('art_gallery_assets')
       .insert({
-        ...rest,
-        title: `${original.title} – Refined Print`,
-        category: 'Refined Print',
-        created_at: new Date().toISOString(),
-        practice: original.practice ?? false,
+        gallery_id: galleryId,
+        artist_id: gallery.artist_id,
+        kind: 'refined',
+        url: refinedUrl,
+        status: 'ready',
       })
-      .select()
+      .select('*')
       .single();
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      return NextResponse.json(
-        { error: 'Failed to create refined print' },
-        { status: 500 }
-      );
-    }
+    if (insErr) return jsonError('Insert refined asset failed', 500, { details: insErr.message });
 
-    return NextResponse.json({ ok: true, artwork: inserted });
-  } catch (err) {
-    console.error('Route error:', err);
-    return NextResponse.json(
-      { error: 'Server error in refine-print' },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, asset: inserted });
+  } catch (e) {
+    return jsonError('Server error', 500, { details: String(e?.message || e) });
   }
 }
