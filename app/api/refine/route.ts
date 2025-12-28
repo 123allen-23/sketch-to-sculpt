@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     // IMPORTANT: gpt-image models return base64 for outputs
     const rsp = await client.images.edit({
       model: "gpt-image-1",
-      image: [inputFile],
+      image: inputFile,
       prompt: finalPrompt,
       size: "1024x1024",
     });

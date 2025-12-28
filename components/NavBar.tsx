@@ -1,41 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { usePathname } from "next/navigation";
+
+const linkStyle = (active: boolean): React.CSSProperties => ({
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid #2a2a2a",
+  background: active ? "rgba(255,255,255,0.08)" : "transparent",
+  fontWeight: 800,
+  textDecoration: "none",
+  color: "inherit",
+});
 
 export default function NavBar() {
-  const [authed, setAuthed] = useState<boolean>(false);
+  const pathname = usePathname();
 
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setAuthed(!!data.session);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthed(!!session);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  async function logout() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
-
-  const linkStyle: React.CSSProperties = {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid #333",
-    textDecoration: "none",
-  };
+  const items = [
+    { href: "/", label: "Home" },
+    { href: "/gallery", label: "Gallery" },
+    { href: "/public-gallery", label: "Public" },
+    { href: "/settings", label: "Settings" },
+    { href: "/policies", label: "Policies" },
+    { href: "/login", label: "Login" },
+  ];
 
   return (
     <header
@@ -43,31 +31,36 @@ export default function NavBar() {
         position: "sticky",
         top: 0,
         zIndex: 50,
+        background: "rgba(10,10,10,0.85)",
         backdropFilter: "blur(10px)",
-        background: "rgba(0,0,0,0.65)",
         borderBottom: "1px solid #222",
       }}
     >
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 12, display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>
-          <Link href="/" style={{ textDecoration: "none" }}>Sketch→Sculpt</Link>
-        </div>
+      <div
+        style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <Link href="/" style={{ fontWeight: 900, letterSpacing: 0.2, textDecoration: "none", color: "inherit" }}>
+          Sketch→Sculpt
+        </Link>
 
-<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: 12 }}>
-  <Link href="/" style={linkStyle}>Home</Link>
-  <Link href="/gallery" style={linkStyle}>Gallery</Link>
-  <Link href="/settings" style={linkStyle}>Settings</Link>
-  <Link href="/policies" style={linkStyle}>Policies</Link>
-</div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          {!authed ? (
-            <Link href="/login" style={linkStyle}>Login</Link>
-          ) : (
-            <button onClick={logout} style={{ ...linkStyle, cursor: "pointer", background: "transparent", color: "inherit" }}>
-              Logout
-            </button>
-          )}
-        </div>
+        <nav style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {items.map((it) => {
+            const active = pathname === it.href;
+            return (
+              <Link key={it.href} href={it.href} style={linkStyle(active)}>
+                {it.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </header>
   );
