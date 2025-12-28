@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import StageUploader from "@/components/StageUploader";
+import RefineControls from "@/components/RefineControls";
+import RenderControls from "@/components/RenderControls";
 
 type Artwork = {
   id: string;
@@ -338,13 +340,30 @@ export default function GalleryPage() {
                   </div>
                 </div>
 
-                {!showTrash && (
-                  <div style={{ marginTop: 12 }}>
-                    <StageUploader artworkId={a.id} />
-                  </div>
-                )}
+{/* ===== PIPELINE CONTROLS ===== */}
+{!showTrash && (
+  <div style={{ marginTop: 12 }}>
+    {/* Upload / stage selector */}
+    <StageUploader artworkId={a.id} />
 
-                <div
+    {/* Refined stage tools */}
+    <div style={{ marginTop: 12 }}>
+      <RefineControls
+        artworkId={a.id}
+        onUpdated={() => window.location.reload()}
+      />
+    </div>
+
+    {/* 3D Render stage tools */}
+    <div style={{ marginTop: 12 }}>
+      <RenderControls
+        artworkId={a.id}
+        onUpdated={() => window.location.reload()}
+      />
+    </div>
+  </div>
+)}               
+                   <div
                   style={{
                     marginTop: 12,
                     display: "grid",
