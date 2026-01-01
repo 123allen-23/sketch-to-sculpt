@@ -4,7 +4,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 First, run the development server:
 
-```bash
+```## Developer Setup
+
+See `DEV_HANDOFF.md` for full environment setup, account requirements,
+and validation checklist. Developers must use their own service accounts
+(Supabase, Stripe, OpenAI).
 npm run dev
 # or
 yarn dev
@@ -34,3 +38,18 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Sketch→Sculpt
+
+AI-powered pipeline that transforms hand-drawn artwork into refined renders,
+3D models, and physical sculptures.
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies
+3. See `DEV_HANDOFF.md` for full setup instructions
+
+## Developer Requirements
+
+Developers must use their own third-party service accounts
+(Supabase, Stripe, OpenAI). No shared credentials.
