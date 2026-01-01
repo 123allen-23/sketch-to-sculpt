@@ -1,0 +1,97 @@
+# Sketch→Sculpt — Developer Handoff & Setup Guide
+
+This document defines the required environment setup, third-party account ownership,
+and validation checklist for working on the Sketch→Sculpt project.
+
+Failure to follow this document means the developer is not approved to continue work.
+
+---
+
+## ENVIRONMENT FILE TEMPLATE
+
+**File name:** `.env.local`
+
+- This file is local only
+- Never committed to git
+- All values must be provided by the developer using their own accounts
+
+```env
+# ===============================
+# SKETCH→SCULPT ENV TEMPLATE
+# ===============================
+
+# --- App ---
+NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# --- Supabase ---
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+JWT_SECRET=YOUR_JWT_SECRET
+
+# --- Storage ---
+SUPABASE_STORAGE_BUCKET=artwork-images
+
+# --- Stripe ---
+STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxx
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxx
+ACCOUNT SETUP & KEY MANAGEMENT (MANDATORY)
+All third-party services must be created and managed under the developer’s own accounts.
+No shared logins.
+No requesting keys from the project owner.
+No reuse of existing credentials.
+SUPABASE SETUP
+Create or log into a Supabase account
+Create a new project for this app
+Enable Email authentication
+Required Keys (Project Settings → API):
+Project URL
+anon public key
+service_role key
+Database Required tables:
+artworks
+artwork_versions
+public_gallery
+Storage
+Create bucket: artwork-images
+Security
+Enable Row Level Security (RLS)
+Policies must allow:
+Insert for authenticated users
+Public select for gallery display
+STRIPE SETUP (TEST MODE)
+Create or log into a Stripe account
+Switch to Test Mode
+Keys (Developers → API Keys):
+Publishable key
+Secret key
+Webhook
+Create webhook endpoint
+Copy webhook signing secret
+OPENAI SETUP
+Create or log into an OpenAI account
+Generate a new API key
+DEVELOPER VALIDATION CHECKLIST
+The developer must confirm all of the following:
+Application runs locally using their own credentials
+No placeholder values remain in .env.local
+No secrets are committed to git
+Original upload works
+Refined stage renders
+3D render stage completes
+Gallery displays all stages
+Stripe test payments function correctly
+No direct fetch('/api/...') calls bypass safeFetch
+Failures must be documented with logs and file paths.
+REQUIRED DELIVERABLES
+The developer must provide:
+Screenshot of the app running locally
+Screenshot of gallery with rendered stages
+List of blockers (if any) with file paths
+Clear recommendation for next steps
+OWNERSHIP STATEMENT
+All credentials used during development are owned and managed by the developer.
+No production, personal, or private keys will be requested from the project owner.# --- AI ---
+OPENAI_API_KEY=sk-xxxxxxxxxxxxx
