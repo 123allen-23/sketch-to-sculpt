@@ -287,3 +287,4 @@ AI-powered pipeline that transforms hand-drawn artwork into refined renders,
 
 Developers must use their own third-party service accounts
 (Supabase, Stripe, OpenAI). No shared credentials.
+Add full developer handoff documentation
